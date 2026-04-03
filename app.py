@@ -5,7 +5,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.naive_bayes import MultinomialNB
 import matplotlib.pyplot as plt
 
-st.title("💰 Smart Expense Tracker")
+st.title("💰 Smart Expense Tracker (Income + Expense)")
 
 FILE = "expenses.csv"
 
@@ -13,9 +13,9 @@ FILE = "expenses.csv"
 if os.path.exists(FILE):
     df = pd.read_csv(FILE)
 else:
-    df = pd.DataFrame(columns=["Amount", "Description", "Category"])
+    df = pd.DataFrame(columns=["Type", "Amount", "Description", "Category"])
 
-# Sample training data for AI
+# Sample training data
 train_data = [
     ("pizza burger food", "Food"),
     ("bus train travel", "Travel"),
@@ -34,36 +34,57 @@ model = MultinomialNB()
 model.fit(X, labels)
 
 # Input section
-amount = st.number_input("Enter Amount")
+type_option = st.selectbox("Select Type", ["Income", "Expense"])
+amount = st.number_input("Enter Amount", min_value=0.0)
 desc = st.text_input("Enter Description")
 
-if st.button("Add Expense"):
-    if desc != "":
+if st.button("Add Entry"):
+    if desc != "" and amount > 0:
         vec = vectorizer.transform([desc])
         category = model.predict(vec)[0]
 
-        new_data = pd.DataFrame([[amount, desc, category]],
-                                columns=["Amount", "Description", "Category"])
+        new_data = pd.DataFrame([[type_option, amount, desc, category]],
+                                columns=["Type", "Amount", "Description", "Category"])
 
         df = pd.concat([df, new_data], ignore_index=True)
         df.to_csv(FILE, index=False)
 
-        st.success(f"Added under category: {category}")
+        st.success(f"{type_option} added under category: {category}")
 
 # Show data
-st.subheader("📊 Expense Data")
+st.subheader("📊 Transactions")
 st.write(df)
 
-# Chart
+# Calculations
 if not df.empty:
-    st.subheader("Spending by Category")
+    income = df[df["Type"] == "Income"]["Amount"].sum()
+    expense = df[df["Type"] == "Expense"]["Amount"].sum()
+    balance = income - expense
 
-    chart_data = df.groupby("Category")["Amount"].sum()
+    st.subheader("💰 Summary")
+    st.write(f"Total Income: ₹{income}")
+    st.write(f"Total Expense: ₹{expense}")
+    st.write(f"Balance: ₹{balance}")
+
+    # Bar chart
+    st.subheader("📊 Income vs Expense")
+    chart_data = pd.Series([income, expense], index=["Income", "Expense"])
 
     fig, ax = plt.subplots()
     chart_data.plot(kind="bar", ax=ax)
     st.pyplot(fig)
 
-    # AI Suggestion
-    max_cat = chart_data.idxmax()
-    st.warning(f"You are spending most on: {max_cat}. Try to reduce it!")
+    # Category spending (only expenses)
+    st.subheader("📉 Expense by Category")
+    exp_df = df[df["Type"] == "Expense"]
+
+    if not exp_df.empty:
+        cat_data = exp_df.groupby("Category")["Amount"].sum()
+
+        fig2, ax2 = plt.subplots()
+        cat_data.plot(kind="bar", ax=ax2)
+        st.pyplot(fig2)
+
+        # AI Suggestion
+        max_cat = cat_data.idxmax()
+        st.warning(f"You are spending most on {max_cat}. Try to reduce it!")
